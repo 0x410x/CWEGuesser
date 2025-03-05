@@ -1,0 +1,232 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVE to CWE Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .description-input {
+            min-height: 150px;
+        }
+        .result-card {
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="mb-5">
+            <h1 class="display-4 text-center">CVE to CWE Prediction Tool</h1>
+            <p class="lead text-center">Enter a vulnerability description to predict possible CWE categories</p>
+        </header>
+
+        <main>
+            {% if not model_loaded %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Model Not Loaded!</h4>
+                <p>The prediction model couldn't be loaded. Please ensure the following files exist in the application directory:</p>
+                <ul>
+                    <li>cve_cwe_vectorizer.pkl</li>
+                    <li>cve_cwe_classifier.pkl</li>
+                    <li>top_cwes.pkl</li>
+                </ul>
+                <p>These files are created when you train the model using the training script.</p>
+            </div>
+            {% else %}
+                {% if error %}
+                <div class="alert alert-warning" role="alert">
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <div class="card shadow">
+                    <div class="card-body">
+                        <form action="/predict" method="post">
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Vulnerability Description</label>
+                                <textarea class="form-control description-input" id="description" name="description" placeholder="Enter a CVE description or vulnerability details..." required></textarea>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">Predict CWEs</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <h3>Example Descriptions:</h3>
+                    <div class="list-group">
+                        <button type="button" class="list-group-item list-group-item-action example-description">
+                            A SQL injection vulnerability in login.php allows attackers to bypass authentication by manipulating the username parameter.
+                        </button>
+                        <button type="button" class="list-group-item list-group-item-action example-description">
+                            The application fails to properly validate user-supplied input, allowing attackers to execute arbitrary code via crafted HTTP requests.
+                        </button>
+                        <button type="button" class="list-group-item list-group-item-action example-description">
+                            A cross-site scripting (XSS) vulnerability in the search function allows attackers to inject malicious scripts that execute in victims' browsers.
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </main>
+
+        <footer class="mt-5 pt-3 text-muted border-top">
+            <div class="text-center">
+                <p>CVE to CWE Prediction Tool © 2025</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Add example descriptions to the text area when clicked
+        document.querySelectorAll('.example-description').forEach(button => {
+            button.addEventListener('click', function() {
+                document.getElementById('description').value = this.innerText;
+            });
+        });
+    </script>
+</body>
+</html>
+
+<!-- templates/results.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVE to CWE Predictor - Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .progress {
+            height: 25px;
+        }
+        .result-card {
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+        }
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .cwe-link {
+            text-decoration: none;
+        }
+        .description-box {
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="mb-4">
+            <h1 class="display-5 text-center">Prediction Results</h1>
+        </header>
+
+        <main>
+            <div class="card mb-4 shadow">
+                <div class="card-header bg-light">
+                    <h3 class="card-title mb-0">Vulnerability Description</h3>
+                </div>
+                <div class="card-body">
+                    <div class="description-box">
+                        {{ description }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title mb-0">Predicted CWE Categories</h3>
+                </div>
+                <div class="card-body">
+                    {% if predictions|length == 0 %}
+                        <div class="alert alert-warning">
+                            No CWE categories were predicted with confidence above the threshold.
+                        </div>
+                    {% else %}
+                        <div class="row">
+                            {% for prediction in predictions %}
+                                <div class="col-md-6">
+                                    <div class="card result-card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">
+                                                <a href="https://cwe.mitre.org/data/definitions/{{ prediction.cwe[4:] }}.html" 
+                                                   target="_blank" class="cwe-link">
+                                                    {{ prediction.cwe }}
+                                                </a>
+                                            </h5>
+                                            <div class="mb-2">
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-success" 
+                                                         role="progressbar" 
+                                                         style="width: {{ (prediction.probability * 100)|round|int }}%"
+                                                         aria-valuenow="{{ (prediction.probability * 100)|round|int }}" 
+                                                         aria-valuemin="0" 
+                                                         aria-valuemax="100">
+                                                        {{ (prediction.probability * 100)|round|int }}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="card-text cwe-description" data-cwe="{{ prediction.cwe }}">
+                                                <small class="text-muted">Loading description...</small>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mt-4 d-grid">
+                <a href="/" class="btn btn-outline-primary">Try Another Description</a>
+            </div>
+        </main>
+
+        <footer class="mt-5 pt-3 text-muted border-top">
+            <div class="text-center">
+                <p>CVE to CWE Prediction Tool © 2025</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Fetch CWE descriptions when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.cwe-description').forEach(element => {
+                const cweId = element.getAttribute('data-cwe');
+                fetch(`/cwe/${cweId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        element.innerHTML = data.description;
+                    })
+                    .catch(error => {
+                        console.error('Error fetching CWE info:', error);
+                        element.innerHTML = 'Error loading description';
+                    });
+            });
+        });
+    </script>
+</body>
+</html>
