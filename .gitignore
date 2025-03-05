@@ -2,3 +2,4 @@
 .env
 *.pkl
 __pycache__/
+nvdcve-1.1-2024.json
